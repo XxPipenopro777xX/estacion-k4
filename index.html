@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Estación K-4 - Prototipo</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:"Segoe UI",system-ui,Arial,sans-serif;color:#d8e6ea;user-select:none}
+  #game{position:fixed;inset:0}
+  canvas{display:block}
+  #vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(0,0,0,.6) 100%)}
+  #hud{display:none}
+  #players{position:fixed;left:14px;top:14px;background:rgba(0,0,0,.4);padding:8px 12px;border-radius:8px;font-size:13px;min-width:150px}
+  #players .t{font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:.55;margin-bottom:4px}
+  .pl{margin:3px 0}
+  .pl em{opacity:.5;font-style:normal;font-size:11px}
+  #codigo{position:fixed;right:14px;top:14px;font-size:13px;text-align:right;line-height:1.4;background:rgba(0,0,0,.4);padding:8px 12px;border-radius:8px}
+  #codigo b{font-size:20px;letter-spacing:.25em;color:#7fe9df;margin-left:6px}
+  #codigo span{font-size:11px;opacity:.6}
+  #zona{position:fixed;left:50%;top:16px;transform:translateX(-50%);font-size:14px;opacity:0;transition:opacity .6s;text-shadow:0 1px 4px #000;letter-spacing:.08em;padding:4px 12px;border-bottom:1px solid rgba(255,255,255,.25);text-transform:uppercase}
+  #prompt{position:fixed;left:50%;top:58%;transform:translateX(-50%);font-size:17px;opacity:0;transition:opacity .2s;padding:6px 14px;border:1px solid rgba(255,255,255,.35);border-radius:6px;background:rgba(0,0,0,.5);white-space:nowrap}
+  #aviso{position:fixed;left:50%;bottom:12%;transform:translateX(-50%);max-width:70vw;text-align:center;font-size:16px;text-shadow:0 1px 5px #000;opacity:0;transition:opacity .4s}
+  #ayuda{position:fixed;left:14px;bottom:12px;font-size:12px;opacity:.55;line-height:1.6}
+  #cross{position:fixed;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:rgba(255,255,255,.5);pointer-events:none}
+  #pausa{display:none;position:fixed;left:50%;top:42%;transform:translateX(-50%);padding:10px 18px;background:rgba(0,0,0,.6);border-radius:8px;font-size:15px;cursor:pointer}
+  #debug{display:none;position:fixed;right:10px;bottom:10px;background:rgba(0,0,0,.6);padding:6px 8px;border-radius:6px;font-size:11px}
+  .screen{position:fixed;inset:0;background:radial-gradient(ellipse at center,rgba(2,6,10,.55) 0%,rgba(2,4,8,.92) 75%);display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:24px;box-sizing:border-box;z-index:10}
+  .screen h1{margin:0 0 6px;font-weight:200;letter-spacing:.3em;font-size:32px}
+  .screen p{max-width:640px;line-height:1.55;opacity:.85}
+  .screen .keys{font-size:13px;opacity:.75;margin:10px 0 18px;line-height:1.8}
+  button{background:#16384a;color:#e6f6ff;border:1px solid #3d7a99;padding:10px 26px;font-size:16px;border-radius:6px;cursor:pointer}
+  button:hover{background:#1d4b63}
+  button:disabled{opacity:.4;cursor:wait}
+  #menu .row{display:flex;gap:10px;justify-content:center;margin:8px 0}
+  input#name,input#code{background:#0b1a22;color:#e6f6ff;border:1px solid #3d7a99;border-radius:6px;padding:10px 14px;font-size:16px;text-align:center}
+  input#name{width:260px;margin-bottom:6px}
+  input#code{width:110px;letter-spacing:.3em;text-transform:uppercase}
+  #menuMsg,#lobbyMsg{min-height:20px;font-size:14px;opacity:.85}
+  #carga{width:260px;height:4px;background:rgba(255,255,255,.1);border-radius:2px;margin:6px auto;overflow:hidden}
+  #barra{height:100%;width:0;background:#4fe0d0;transition:width .2s}
+  #lobby{display:none;min-width:320px}
+  #lobbyCode{font-size:14px;opacity:.85;margin-bottom:10px;line-height:1.5}
+  #lobbyCode b{display:block;font-size:42px;letter-spacing:.35em;margin:4px 0;color:#7fe9df}
+  #lobbyList{margin:10px auto 16px;max-width:320px;text-align:left}
+  .lp{display:flex;justify-content:space-between;padding:7px 12px;margin:4px 0;background:rgba(255,255,255,.06);border-radius:6px}
+  .lp.ok{background:rgba(70,200,140,.18)}
+  #btnReady.on{background:#1f5a3a;border-color:#4fbf7f}
+  #end{display:none}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="vignette"></div>
+
+<div id="hud">
+  <div id="cross"></div>
+  <div id="players"><div class="t">En la estación</div><div id="plist"></div></div>
+  <div id="codigo"></div>
+  <div id="zona"></div>
+  <div id="prompt"></div>
+  <div id="aviso"></div>
+  <div id="pausa">Haz clic para controlar la cámara</div>
+  <div id="ayuda"><b>WASD</b> moverte · <b>Shift</b> correr · <b>Espacio</b> saltar · <b>E</b> abrir/cerrar puertas · <b>F</b> linterna · <b>Esc</b> soltar el ratón</div>
+</div>
+
+<div id="title" class="screen">
+  <h1>ESTACIÓN K-4</h1>
+  <p style="opacity:.5;margin:0 0 14px">prototipo de mapa · exploración libre · hasta 8 jugadores</p>
+  <p>Una estación orbital con hangar, sala de control, bodega, reactor, comedor, dormitorios, laboratorio y enfermería.
+     La nave EV-07 está estacionada en el hangar. Recórrela sola/o o con amigos.</p>
+  <div class="keys">
+    <b>WASD</b> moverte · <b>Ratón</b> mirar · <b>Shift</b> correr · <b>Espacio</b> saltar<br>
+    <b>E</b> abrir y cerrar puertas · <b>F</b> linterna
+  </div>
+  <div id="menu">
+    <input id="name" maxlength="14" placeholder="Tu nombre" autocomplete="off">
+    <div class="row"><button id="btnSolo" disabled>Jugar solo</button><button id="btnCreate" disabled>Crear partida</button></div>
+    <div class="row"><input id="code" maxlength="4" placeholder="CÓDIGO" autocomplete="off"><button id="btnJoin" disabled>Unirse</button></div>
+    <div id="carga"><div id="barra"></div></div>
+    <p id="menuMsg">Cargando la estación…</p>
+  </div>
+  <div id="lobby">
+    <div id="lobbyCode"></div>
+    <div id="lobbyList"></div>
+    <button id="btnReady">Estoy listo</button>
+    <p id="lobbyMsg"></p>
+  </div>
+  <p style="font-size:12px;opacity:.4;margin-top:14px">¿Va lento? Agrega <b>?calidad=baja</b> a la dirección.</p>
+</div>
+
+<div id="end" class="screen">
+  <h1>CONEXIÓN PERDIDA</h1>
+  <p id="endText"></p>
+  <button onclick="location.reload()">Volver al menú</button>
+</div>
+
+<div id="debug"></div>
+
+<script src="lib/three.min.js"></script>
+<script src="lib/GLTFLoader.js"></script>
+<script src="lib/peerjs.min.js"></script>
+<script>
+  // Carga los archivos del juego siempre en su versión más reciente (evita que el navegador use una copia vieja)
+  (function () {
+    const files = ['nucleo', 'personajes', 'red', 'estacion', 'juego'], v = Date.now();
+    (function next(i) { if (i >= files.length) return; const s = document.createElement('script'); s.src = 'js/' + files[i] + '.js?v=' + v; s.onload = () => next(i + 1); document.body.appendChild(s); })(0);
+  })();
+</script>
+</body>
+</html>
