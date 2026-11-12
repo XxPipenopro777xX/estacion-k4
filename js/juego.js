@@ -172,6 +172,8 @@ function otro(slot) {
   let o = OTROS.get(slot);
   if (!o) {
     const a = G.makeAstronaut(false); scene.add(a.root);
+    // con luz horneada casi no hay luces en tiempo real: el traje se ilumina un poco solo
+    if (E.horneado) a.root.traverse((m) => { const mt = m.material; if (mt && mt.emissive && !mt.userData.relleno) { mt.emissive.copy(mt.color).multiplyScalar(0.28); mt.userData.relleno = true; } });
     o = { a, pos: new T.Vector3(), yaw: 0, net: null, tag: null, nombre: '' };
     OTROS.set(slot, o);
   }

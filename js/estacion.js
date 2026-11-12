@@ -40,17 +40,59 @@ E.cargar = (progreso) => Promise.all([
 function montar(datos, gltf) {
   E.datos = datos;
   const raiz = gltf.scene; G.scene.add(raiz);
-  // materiales: sin mapa de reflejos, el metal puro se ve negro; se baja el "metalness"
+  // luz horneada en Blender (modelos/luz/*.jpg): si existe, reemplaza a las luces en tiempo real
+  const LUZ = datos.luz || {}, porObjeto = {};
+  Object.values(LUZ).forEach((info) => info.objetos.forEach((n) => { porObjeto[n] = info; }));
+  E.horneado = Object.keys(LUZ).length > 0;
+  // fuerza de los materiales que brillan (three r128 no lee esta extensión del .glb)
+  const fuerzaEmision = {};
+  (gltf.parser.json.materials || []).forEach((m) => {
+    const ext = m.extensions && m.extensions.KHR_materials_emissive_strength;
+    fuerzaEmision[m.name] = ext ? ext.emissiveStrength : 1;
+  });
+  const texturas = {}, convertidos = {}, cargador = new T.TextureLoader();
+  const texLuz = (info) => {
+    if (!texturas[info.img]) {
+      const t = cargador.load('modelos/' + info.img); t.flipY = false; t.encoding = T.sRGBEncoding; texturas[info.img] = t;
+    }
+    return texturas[info.img];
+  };
+  const brilla = (m) => !!(m.emissiveMap || (m.emissive && m.emissive.getHex() !== 0));
+  // material de Blender + luz horneada -> material simple que solo multiplica color x luz
+  function conLuz(m, info) {
+    const clave = m.uuid + '|' + info.img;
+    if (convertidos[clave]) return convertidos[clave];
+    let n;
+    if (info.color && m.transparent) {
+      // vidrios y calcomanías de la nave: sin luz horneada (su color ya está en la nave)
+      n = new T.MeshBasicMaterial({ map: m.map, color: m.color.clone().multiplyScalar(0.55), transparent: true, opacity: m.opacity, depthWrite: false, side: m.side });
+    } else {
+      n = new T.MeshLambertMaterial({
+        map: info.color ? null : m.map, color: info.color ? 0xffffff : m.color,
+        lightMap: texLuz(info), lightMapIntensity: info.k,
+        emissive: brilla(m) ? m.emissive : 0x000000, emissiveMap: m.emissiveMap,
+        emissiveIntensity: brilla(m) ? (fuerzaEmision[m.name] || 1) : 0,
+        transparent: m.transparent, opacity: m.opacity, alphaTest: m.alphaTest, side: m.side, depthWrite: !m.transparent,
+      });
+    }
+    n.name = m.name;
+    if (n.map) n.map.anisotropy = G.renderer.capabilities.getMaxAnisotropy();
+    convertidos[clave] = n; return n;
+  }
+  const infoDe = (o) => { for (let p = o; p; p = p.parent) if (porObjeto[p.name]) return porObjeto[p.name]; return null; };
   const vistos = new Set();
   raiz.traverse((o) => {
     if (!o.isMesh) return;
     o.matrixAutoUpdate = o.name.startsWith('Puerta_') || o.name.startsWith('Costilla');
+    const info = infoDe(o);
+    if (info) { o.material = Array.isArray(o.material) ? o.material.map((m) => conLuz(m, info)) : conLuz(o.material, info); return; }
+    // sin luz horneada: materiales normales con luces en tiempo real
     (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => {
       if (vistos.has(m)) return; vistos.add(m);
-      m.metalness = Math.min(m.metalness, 0.35);
+      m.metalness = Math.min(m.metalness, 0.35);   // sin mapa de reflejos el metal puro se ve negro
       m.roughness = Math.max(m.roughness, 0.45);
       if (m.map) m.map.anisotropy = G.renderer.capabilities.getMaxAnisotropy();
-      if (m.emissiveMap || (m.emissive && m.emissive.getHex() !== 0)) m.emissiveIntensity = 1.6;
+      if (brilla(m)) m.emissiveIntensity = 1.6;
       if (m.transparent) m.depthWrite = false;
     });
   });
@@ -81,10 +123,11 @@ function montar(datos, gltf) {
       fuerza: grande ? 2.2 : G.clamp(l.w / 110, 0.6, 1.6), alcance: grande ? 34 : G.clamp(7 + Math.sqrt(l.w) * 0.7, 9, 18),
     };
   });
-  const N = G.LOW ? 5 : 9;
+  // con luz horneada no hacen falta luces en tiempo real (solo un relleno suave para los astronautas)
+  const N = E.horneado ? 0 : G.LOW ? 5 : 9;
   for (let i = 0; i < N; i++) { const pl = new T.PointLight(0xffffff, 0, 10, 1); G.scene.add(pl); E.pool.push(pl); }
-  G.scene.add(new T.HemisphereLight(0xb8c8d8, 0x2a2824, 0.75));
-  G.scene.add(new T.AmbientLight(0x404650, 0.35));
+  G.scene.add(new T.HemisphereLight(0xb8c8d8, 0x2a2824, E.horneado ? 0.12 : 0.75));
+  if (!E.horneado) G.scene.add(new T.AmbientLight(0x404650, 0.35));
   E.ready = true;
 }
 
